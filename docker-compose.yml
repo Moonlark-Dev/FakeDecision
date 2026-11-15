@@ -1,0 +1,14 @@
+services:
+  fakedecision:
+    build: .
+    image: fakedecision:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8790:8790"
+    environment:
+      FAKE_DECISION_DATA_DIR: /data
+      FAKE_DECISION_ADMIN_EMAIL: ${FAKE_DECISION_ADMIN_EMAIL:-admin@fakedecision.local}
+      FAKE_DECISION_ADMIN_PASSWORD: ${FAKE_DECISION_ADMIN_PASSWORD:-}
+      FAKE_DECISION_PUBLIC_URL: ${FAKE_DECISION_PUBLIC_URL:-}
+    volumes:
+      - ./data:/data

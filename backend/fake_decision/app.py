@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .auth import set_session_cookie
+from .branding import logo_content_type, logo_file, logo_headers
 from .config import AppConfig
 from .db import Database, now_ms
 from .manager import RequestService
@@ -209,6 +210,11 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     @app.get("/favicon.svg", include_in_schema=False)
     async def favicon() -> Response:
+        custom = logo_file(config)
+        if custom is not None:
+            headers = logo_headers(custom)
+            headers["Cache-Control"] = "no-cache"
+            return FileResponse(custom, media_type=logo_content_type(custom), headers=headers)
         svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0b1220"/><path d="M18 44V20h13c9 0 15 4.8 15 12s-6 12-15 12H18Zm9-7h4c4.2 0 6.8-1.9 6.8-5s-2.6-5-6.8-5h-4v10Z" fill="#fff"/><circle cx="47" cy="18" r="4" fill="#c7f36b"/></svg>"""
         return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
 

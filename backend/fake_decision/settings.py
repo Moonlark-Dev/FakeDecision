@@ -8,6 +8,7 @@ from .security import MODEL_NAME_RE, new_id
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "site_name": "Noema",
+    "brand_logo_version": 0,
     "site_tagline": "Typed decisions for software that needs an answer.",
     "site_description": "Calibrated yes/no probabilities, bounded choices and rubric scores over one shared context. One endpoint, no output tokens.",
     "public_base_url": "",
@@ -28,6 +29,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 
 SETTING_TYPES: dict[str, type] = {
     "site_name": str,
+    "brand_logo_version": int,
     "site_tagline": str,
     "site_description": str,
     "public_base_url": str,

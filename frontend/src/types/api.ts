@@ -5,6 +5,7 @@ export type Role = 'admin' | 'operator'
 
 export interface SiteConfig {
   site_name: string
+  logo_url: string
   tagline: string
   description: string
   announcement: string

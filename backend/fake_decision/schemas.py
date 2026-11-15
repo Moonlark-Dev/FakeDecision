@@ -93,6 +93,11 @@ class SettingsIn(BaseModel):
     values: dict[str, Any]
 
 
+class LogoUploadIn(BaseModel):
+    filename: str = Field(default="", max_length=200)
+    data: str = Field(min_length=1, max_length=3_000_000)
+
+
 class PlaygroundIn(BaseModel):
     protocol: Literal["systemone", "google"] = "systemone"
     model: str

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 
 from .. import __version__
+from ..branding import logo_content_type, logo_file, logo_headers, logo_url
 from ..settings import get_all_settings, public_model
 
 router = APIRouter(prefix="/api", tags=["site"])
@@ -15,6 +17,7 @@ async def site_config(request: Request) -> dict[str, Any]:
     settings = get_all_settings(request.app.state.db)
     return {
         "site_name": settings["site_name"],
+        "logo_url": logo_url(request.app.state.db, request.app.state.config),
         "tagline": settings["site_tagline"],
         "description": settings["site_description"],
         "announcement": settings["announcement"],
@@ -24,6 +27,14 @@ async def site_config(request: Request) -> dict[str, Any]:
         "show_register_cta": bool(settings["show_register_cta"]),
         "version": __version__,
     }
+
+
+@router.get("/branding/logo")
+async def branding_logo(request: Request) -> FileResponse:
+    path = logo_file(request.app.state.config)
+    if path is None:
+        raise HTTPException(status_code=404, detail="No custom logo configured")
+    return FileResponse(path, media_type=logo_content_type(path), headers=logo_headers(path))
 
 
 @router.get("/models")
@@ -45,7 +56,7 @@ async def status(request: Request) -> dict[str, Any]:
     models = db.fetch_one("SELECT COUNT(*) AS n FROM models WHERE enabled = 1")
     return {
         "ok": True,
-        "service": "Noema Decisions",
+        "service": f"{get_all_settings(db)['site_name']} Decisions",
         "version": __version__,
         "models": models["n"] if models else 0,
     }

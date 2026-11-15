@@ -93,7 +93,8 @@ Also accepted: `POST /v1beta/models/{model}:decisions` and `POST /v1/decisions`.
 
 ## Public site
 
-- `GET /api/site` → `{ site_name, tagline, description, announcement, registration_enabled, support_email, sound_default, show_register_cta, version }`
+- `GET /api/site` → `{ site_name, logo_url, tagline, description, announcement, registration_enabled, support_email, sound_default, show_register_cta, version }`
+- `GET /api/branding/logo` → uploaded brand logo (`404` when the built-in mark is in use). Served with a versioned `?v=` query from `logo_url`.
 - `GET /api/models` → `{ models: Model[] }`
 - `GET /api/status`
 
@@ -143,6 +144,8 @@ Also accepted: `POST /v1beta/models/{model}:decisions` and `POST /v1/decisions`.
 - `DELETE /api/admin/models/{id}`
 - `GET /api/admin/settings` → `{values, version, limits}`
 - `PUT /api/admin/settings` `{values}`
+- `POST /api/admin/branding/logo` `{filename, data}` — `data` is a base64 data URL (PNG/JPEG/WebP/SVG, ≤512 KB); returns `{logo_url, bytes}`
+- `DELETE /api/admin/branding/logo` — remove the custom logo, fall back to the built-in mark
 - `GET /api/admin/audit?limit=&offset=`
 - `GET /api/admin/export/requests`
 - `GET /api/admin/presence`

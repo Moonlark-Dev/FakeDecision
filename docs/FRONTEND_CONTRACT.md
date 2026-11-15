@@ -15,6 +15,7 @@
 ## Brand
 
 - Product: **Noema** (name comes from `/api/site`, default Noema).
+- Brand logo: `logo_url` from `/api/site` (`""` = built-in inline SVG mark). The URL is versioned, so use it directly and update the favicon from it. Custom logos are uploaded in `/admin/settings` (PNG/JPEG/WebP/SVG, ≤512 KB) and stored in the data directory; the built-in mark remains the fallback.
 - Line: "Typed decisions for software."
 - Models: `jev-latest` (Jev 1.4) and `gemini-decision-1` (Gemini Decision 1).
 - Voice: precise, calm, short sentences. No emoji. No "revolutionary".
@@ -67,7 +68,7 @@
 - `/admin/users`: search, list, disable/enable, reset password, inspect usage keys/recent.
 - `/admin/operators`: create operator, assign model names (multi-select), enable/disable, online/active counts.
 - `/admin/models`: CRUD model catalog, protocol, context, enabled, sort order, assigned operator count.
-- `/admin/settings`: settings form (site name/tagline/description/announcement, registration toggle, timeouts, auto-fill toggle/lead, admin receives all, sound default, max pending, rate limit, support email). Show that server address/secret are CLI/env only.
+- `/admin/settings`: settings form (site name/tagline/description/announcement, logo upload/reset, registration toggle, timeouts, auto-fill toggle/lead, admin receives all, sound default, max pending, rate limit, support email). Show that server address/secret are CLI/env only.
 - `/admin/audit`: simple table of actions.
 
 ## Quality bar

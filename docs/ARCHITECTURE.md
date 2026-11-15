@@ -39,6 +39,7 @@ Client ──HTTP──> /v1/systemone or /v1beta/decisions
 
 - `requests` stores immutable input/questions plus status, draft, final answers, timings and assignment.
 - `users`, `backoffice_users`, `sessions`, `api_keys`, `models`, `model_assignments`, `settings`, `audit_logs`.
+- Uploaded brand logos live in `<data-dir>/branding/logo.<ext>`; the `settings` row `brand_logo_version` only cache-busts the public URL. The built-in mark is used when no file exists.
 - Session tokens and API keys are stored only as hashes.
 - On restart, any interrupted `queued`/`assigned` requests are marked `timed_out` with `server_restart` so no HTTP client waits forever.
 

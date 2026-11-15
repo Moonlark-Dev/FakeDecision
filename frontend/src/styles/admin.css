@@ -3487,3 +3487,48 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/* --------------------------------------------------------------- branding */
+.adm-logo-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.adm-logo-preview {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-sizing: border-box;
+}
+
+.adm-logo-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.adm-logo-actions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.adm-logo-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.adm-logo-input {
+  display: none;
+}

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Loader2, RefreshCw, RotateCcw, Save, Terminal } from 'lucide-vue-next'
+import { Loader2, ImagePlus, RefreshCw, RotateCcw, Save, Terminal, Trash2 } from 'lucide-vue-next'
 import type { SettingsPayload } from '@/types/api'
-import { get, put } from '@/lib/api'
+import { del, get, post, put } from '@/lib/api'
 import { toast } from '@/lib/toast'
+import { useSession } from '@/lib/session'
+import BrandLogo from '@/components/BrandLogo.vue'
 import ToggleSwitch from '@/components/ToggleSwitch.vue'
 import { errorMessage } from './utils'
 
@@ -26,6 +28,14 @@ const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
 const saveError = ref('')
+
+const session = useSession()
+const logoUrl = ref('')
+const logoBusy = ref(false)
+const logoError = ref('')
+const logoInput = ref<HTMLInputElement | null>(null)
+const LOGO_MAX_BYTES = 512 * 1024
+const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
 
 function str(key: string): string {
   const value = form.value[key]
@@ -119,6 +129,7 @@ async function load() {
       ...(response.limits || {}),
     }
     version.value = response.version
+    logoUrl.value = session.state.site?.logo_url || ''
     for (const key of numericKeys) numberText[key] = String(response.values[key] ?? '')
   } catch (err) {
     error.value = errorMessage(err, 'Could not load settings.')
@@ -155,6 +166,68 @@ async function save() {
     toast('Settings not saved', 'error', { detail: saveError.value })
   } finally {
     saving.value = false
+  }
+}
+
+function pickLogo() {
+  if (!logoBusy.value && !saving.value) logoInput.value?.click()
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(new Error('Could not read the selected file.'))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function onLogoChosen(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  logoError.value = ''
+  if (!LOGO_TYPES.includes(file.type)) {
+    logoError.value = 'Use a PNG, JPEG, WebP or SVG image.'
+    return
+  }
+  if (file.size > LOGO_MAX_BYTES) {
+    logoError.value = 'Logo must be 512 KB or smaller.'
+    return
+  }
+  logoBusy.value = true
+  try {
+    const data = await readFileAsDataUrl(file)
+    const response = await post<{ logo_url: string }>('/api/admin/branding/logo', {
+      filename: file.name,
+      data,
+    })
+    logoUrl.value = response.logo_url
+    await session.refreshSite()
+    toast('Logo updated', 'success', { detail: 'The new logo is live on the public site and admin console.' })
+  } catch (err) {
+    logoError.value = errorMessage(err, 'Could not upload the logo.')
+    toast('Logo not updated', 'error', { detail: logoError.value })
+  } finally {
+    logoBusy.value = false
+  }
+}
+
+async function resetLogo() {
+  if (logoBusy.value || !logoUrl.value) return
+  logoBusy.value = true
+  logoError.value = ''
+  try {
+    await del('/api/admin/branding/logo')
+    logoUrl.value = ''
+    await session.refreshSite()
+    toast('Logo reset', 'success', { detail: 'The built-in mark is back.' })
+  } catch (err) {
+    logoError.value = errorMessage(err, 'Could not reset the logo.')
+    toast('Logo not reset', 'error', { detail: logoError.value })
+  } finally {
+    logoBusy.value = false
   }
 }
 
@@ -211,11 +284,43 @@ onMounted(() => {
       <section class="adm-panel" aria-labelledby="adm-settings-site">
         <header class="adm-panel-head">
           <div>
-            <h2 id="adm-settings-site" class="adm-panel-title">Site copy</h2>
-            <p class="adm-panel-sub">Public brand text and links.</p>
+            <h2 id="adm-settings-site" class="adm-panel-title">Brand &amp; site copy</h2>
+            <p class="adm-panel-sub">Brand name, logo, public copy and links.</p>
           </div>
         </header>
         <div class="adm-panel-body adm-form">
+          <div class="field">
+            <span class="label">Logo</span>
+            <div class="adm-logo-row">
+              <span class="adm-logo-preview">
+                <img v-if="logoUrl" :src="logoUrl" alt="Current brand logo" />
+                <BrandLogo v-else compact :size="40" />
+              </span>
+              <div class="adm-logo-actions">
+                <div class="adm-logo-buttons">
+                  <button type="button" class="btn btn-sm" :disabled="logoBusy || saving" @click="pickLogo">
+                    <Loader2 v-if="logoBusy" :size="14" class="adm-spin" />
+                    <ImagePlus v-else :size="14" />
+                    <span>{{ logoBusy ? 'Uploading…' : logoUrl ? 'Replace logo' : 'Upload logo' }}</span>
+                  </button>
+                  <button v-if="logoUrl" type="button" class="btn btn-sm" :disabled="logoBusy || saving" @click="resetLogo">
+                    <Trash2 :size="14" />
+                    <span>Reset</span>
+                  </button>
+                </div>
+                <p class="field-hint">PNG, JPEG, WebP or SVG, up to 512 KB. Square images work best. Also used as the browser favicon.</p>
+                <p class="field-hint">Leave empty to use the built-in mark.</p>
+                <p v-if="logoError" class="field-error">{{ logoError }}</p>
+              </div>
+              <input
+                ref="logoInput"
+                class="adm-logo-input"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                @change="onLogoChosen"
+              />
+            </div>
+          </div>
           <div class="field">
             <label class="label" for="adm-setting-site_name">Site name</label>
             <input

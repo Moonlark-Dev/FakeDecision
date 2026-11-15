@@ -23,6 +23,14 @@ from ..auth import (
     set_session_cookie,
     user_payload,
 )
+from ..branding import (
+    LogoError,
+    logo_content_type,
+    logo_url,
+    parse_logo_upload,
+    remove_logo,
+    store_logo,
+)
 from ..db import now_ms
 from ..protocols import ProtocolError
 from ..schemas import (
@@ -31,6 +39,7 @@ from ..schemas import (
     AnswerIn,
     DraftIn,
     ModelCreateIn,
+    LogoUploadIn,
     ModelPatchIn,
     OperatorCreateIn,
     OperatorPatchIn,
@@ -690,6 +699,38 @@ async def settings_get(request: Request) -> dict[str, Any]:
             "rate_limit_per_minute": [1, 10000],
         },
     }
+
+
+@router.post("/branding/logo")
+async def branding_logo_upload(request: Request, payload: LogoUploadIn) -> dict[str, Any]:
+    admin = require_role_admin(request)
+    db = request.app.state.db
+    config = request.app.state.config
+    try:
+        blob, suffix = parse_logo_upload(payload.filename, payload.data)
+    except LogoError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    path = store_logo(config, blob, suffix)
+    save_settings(db, {"brand_logo_version": now_ms()})
+    db.audit(
+        "admin",
+        admin["id"],
+        "branding.logo.update",
+        None,
+        {"bytes": len(blob), "content_type": logo_content_type(path)},
+    )
+    return {"logo_url": logo_url(db, config), "bytes": len(blob)}
+
+
+@router.delete("/branding/logo")
+async def branding_logo_delete(request: Request) -> dict[str, Any]:
+    admin = require_role_admin(request)
+    db = request.app.state.db
+    removed = remove_logo(request.app.state.config)
+    save_settings(db, {"brand_logo_version": 0})
+    if removed:
+        db.audit("admin", admin["id"], "branding.logo.remove", None, None)
+    return {"logo_url": ""}
 
 
 @router.put("/settings")

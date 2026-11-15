@@ -18,6 +18,7 @@ let loading: Promise<void> | null = null
 
 const fallbackSite: SiteConfig = {
   site_name: 'Noema',
+  logo_url: '',
   tagline: 'Typed decisions for software that needs an answer.',
   description:
     'Calibrated yes/no probabilities, bounded choices and rubric scores over one shared context. One endpoint, no output tokens.',

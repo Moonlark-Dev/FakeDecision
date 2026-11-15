@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   test:
+    name: Test & build web
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -38,8 +39,16 @@ jobs:
       - working-directory: frontend
         run: pnpm build
       - run: python -m pytest -q
+      - name: Upload web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: fakedecision-web-dist
+          path: backend/fake_decision/web/dist
+          if-no-files-found: error
+          retention-days: 1
 
-  release:
+  build-linux:
+    name: Linux x86_64 executable
     needs: test
     runs-on: ubuntu-22.04
     timeout-minutes: 60
@@ -53,28 +62,134 @@ jobs:
           . .venv-build/bin/activate
           python -m pip install --upgrade pip
           pip install -r backend/requirements-build.txt
-      - uses: pnpm/action-setup@v4
+      - name: Download web build
+        uses: actions/download-artifact@v4
         with:
-          version: 9
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-      - working-directory: frontend
-        run: pnpm install --frozen-lockfile
-      - name: Build release executable
+          name: fakedecision-web-dist
+          path: backend/fake_decision/web/dist
+      - name: Build standalone executable
         env:
+          SKIP_FRONTEND_BUILD: '1'
           CCACHE_DIR: ${{ github.workspace }}/.ccache
           NUITKA_CACHE_DIR: ${{ github.workspace }}/.nuitka-cache
         run: |
           . .venv-build/bin/activate
           bash scripts/build_executable.sh
+      - name: Verify binary starts and CPU baseline
+        run: |
+          tar -xzf dist/FakeDecision-linux-x86_64.tar.gz -C "$RUNNER_TEMP"
+          readelf -n "$RUNNER_TEMP/FakeDecision-linux-x86_64/fakedecision" | tee /tmp/fd-isa.txt
+          if grep -q 'x86-64-v3' /tmp/fd-isa.txt; then
+            echo 'ERROR: artifact requires x86-64-v3; build must target baseline CPUs' >&2
+            exit 1
+          fi
+          "$RUNNER_TEMP/FakeDecision-linux-x86_64/fakedecision" --version
+          "$RUNNER_TEMP/FakeDecision-linux-x86_64/fakedecision" --init-only --data-dir "$RUNNER_TEMP/fd-ci-init" --admin-password 'CiOnly!Password123' | tail -5
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-dist
+          path: |
+            dist/FakeDecision-linux-x86_64.tar.gz
+            dist/FakeDecision-linux-x86_64.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  build-windows:
+    name: Windows x86_64 executable
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-build.txt
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-build.txt
+      - name: Download web build
+        uses: actions/download-artifact@v4
+        with:
+          name: fakedecision-web-dist
+          path: backend/fake_decision/web/dist
+      - name: Build standalone executable
+        env:
+          SKIP_FRONTEND_BUILD: '1'
+        run: |
+          # A checkout with core.autocrlf=true would give the script CRLF line
+          # endings; normalize so any Git Bash/Cygwin bash can parse it.
+          sed -i 's/\r$//' scripts/build_executable.sh
+          bash scripts/build_executable.sh
+      - name: Verify packaged Windows executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:GITHUB_WORKSPACE 'dist\FakeDecision-windows-x86_64.zip'
+          $sha = "$zip.sha256"
+          foreach ($file in @($zip, $sha)) {
+            if (-not (Test-Path -LiteralPath $file)) { throw "missing build output: $file" }
+          }
+
+          $expected = ((Get-Content -LiteralPath $sha -TotalCount 1) -split '\s+')[0]
+          $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+          if ($actual -ne $expected) { throw "sha256 mismatch: archive=$actual checksum-file=$expected" }
+
+          $dest = Join-Path $env:RUNNER_TEMP 'fd-win'
+          if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
+          Expand-Archive -Path $zip -DestinationPath $dest
+          $entries = @(Get-ChildItem -LiteralPath $dest)
+          if ($entries.Count -ne 1 -or $entries[0].Name -ne 'FakeDecision-windows-x86_64') {
+            throw "archive must contain exactly one top-level folder FakeDecision-windows-x86_64/, got: $($entries.Name -join ', ')"
+          }
+
+          $pkg = Join-Path $dest 'FakeDecision-windows-x86_64'
+          foreach ($name in @('fakedecision.exe', 'README.md', 'LICENSE', 'RUN.txt', 'data')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $pkg $name))) { throw "archive entry missing: $name" }
+          }
+
+          $exe = Join-Path $pkg 'fakedecision.exe'
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "fakedecision.exe --version failed with exit code $LASTEXITCODE" }
+
+          $initDir = Join-Path $env:RUNNER_TEMP 'fd-win-init'
+          if (Test-Path -LiteralPath $initDir) { Remove-Item -LiteralPath $initDir -Recurse -Force }
+          & $exe --init-only "--data-dir=$initDir" --admin-password 'CiOnly!Password123'
+          if ($LASTEXITCODE -ne 0) { throw "fakedecision.exe --init-only failed with exit code $LASTEXITCODE" }
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-dist
+          path: |
+            dist/FakeDecision-windows-x86_64.zip
+            dist/FakeDecision-windows-x86_64.zip.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub release
+    needs: [build-linux, build-windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: |
-            dist/FakeDecision-linux-x86_64.tar.gz
-            dist/FakeDecision-linux-x86_64.tar.gz.sha256
           fail_on_unmatched_files: true
+          files: |
+            artifacts/linux-dist/*
+            artifacts/windows-dist/*

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { Loader2, ImagePlus, RefreshCw, RotateCcw, Save, Terminal, Trash2 } from 'lucide-vue-next'
 import type { SettingsPayload } from '@/types/api'
 import { del, get, post, put } from '@/lib/api'
@@ -30,6 +31,7 @@ const error = ref('')
 const saveError = ref('')
 
 const session = useSession()
+const route = useRoute()
 const logoUrl = ref('')
 const logoBusy = ref(false)
 const logoError = ref('')
@@ -158,6 +160,23 @@ async function save() {
     form.value = { ...response.values }
     original.value = { ...response.values }
     for (const key of numericKeys) numberText[key] = String(response.values[key] ?? '')
+    const brandKeys = [
+      'site_name',
+      'site_tagline',
+      'site_description',
+      'announcement',
+      'support_email',
+      'registration_enabled',
+      'show_register_cta',
+    ]
+    if (brandKeys.some((key) => key in payload)) {
+      // The header/footer/logos read the shared site state, so a brand rename
+      // must update it immediately instead of waiting for the next reload.
+      await session.refreshSite()
+      const brand = session.state.site?.site_name || 'Noema'
+      const pageTitle = route.meta.title as string | undefined
+      document.title = pageTitle ? `${pageTitle} · ${brand}` : brand
+    }
     toast('Settings saved', 'success', {
       detail: `${Object.keys(payload).length} value${Object.keys(payload).length === 1 ? '' : 's'} updated.`,
     })

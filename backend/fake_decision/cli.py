@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import secrets
+import sys
 from pathlib import Path
 
 from . import __version__
@@ -12,6 +13,24 @@ from .config import AppConfig
 from .db import Database
 from .security import hash_password, new_id
 from .settings import seed_defaults
+
+
+def _ensure_utf8_stdio() -> None:
+    """Use UTF-8 for redirected stdout/stderr on Windows code pages.
+
+    The Windows executable is often started as a service or with output
+    redirected, where Python falls back to the ANSI code page (cp1252 by
+    default). Reconfigure before the startup banner is printed so the legal
+    warning and any non-ASCII log text cannot abort the process.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            encoding = (getattr(stream, "encoding", "") or "").replace("-", "").lower()
+            if encoding in {"utf8", "utf_8"}:
+                continue
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            continue
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
+    _ensure_utf8_stdio()
     args = build_parser().parse_args(argv)
     emit_legal_warning()
     logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO), format="%(asctime)s %(levelname)s %(name)s: %(message)s")

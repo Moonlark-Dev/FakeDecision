@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import secrets
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
@@ -52,13 +53,28 @@ LEGAL_WARNING = """
 """
 
 
+def _print_encoding_safe(text: str) -> None:
+    """Print startup art even when stdout uses a legacy code page.
+
+    Windows services and redirected output default to cp1252, which cannot
+    represent the box drawing and Chinese text in the legal warning. Losing
+    those glyphs is fine; crashing before the server starts is not.
+    """
+    try:
+        print(text, flush=True)
+    except UnicodeEncodeError:
+        encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+        sys.stdout.write(text.encode(encoding, "replace").decode(encoding, "replace") + "\n")
+        sys.stdout.flush()
+
+
 def emit_legal_warning() -> None:
     global _WARNING_EMITTED
     if _WARNING_EMITTED:
         return
     _WARNING_EMITTED = True
-    print(BANNER, flush=True)
-    print(LEGAL_WARNING, flush=True)
+    _print_encoding_safe(BANNER)
+    _print_encoding_safe(LEGAL_WARNING)
 
 
 def _bootstrap_admin(db: Database, config: AppConfig) -> tuple[bool, str | None]:

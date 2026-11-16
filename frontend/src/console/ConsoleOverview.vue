@@ -7,12 +7,14 @@ import EmptyState from '@/components/EmptyState.vue'
 import StatTile from '@/components/StatTile.vue'
 import { get } from '@/lib/api'
 import { useSession } from '@/lib/session'
+import { brandEnvPrefix } from '@/lib/brand'
 import { formatCompact, formatDuration, statusLabel, statusTone, timeAgo, truncateId } from '@/lib/format'
 import { reportError } from '@/public/support'
 import type { Usage } from '@/types/api'
 
 const session = useSession()
 const user = computed(() => session.state.user)
+const envPrefix = computed(() => brandEnvPrefix(session.state.site?.site_name))
 
 const usage = ref<Usage | null>(null)
 const loading = ref(true)
@@ -48,8 +50,8 @@ async function load() {
 
 onMounted(load)
 
-const quickstart = `curl -sS "$NOEMA_BASE_URL/v1/systemone" \\
-  -H "Authorization: Bearer $NOEMA_API_KEY" \\
+const quickstart = computed(() => `curl -sS "$${envPrefix.value}_BASE_URL/v1/systemone" \\
+  -H "Authorization: Bearer $${envPrefix.value}_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "jev-latest",
@@ -60,7 +62,7 @@ const quickstart = `curl -sS "$NOEMA_BASE_URL/v1/systemone" \\
         "instructions": "Does the customer ask for a refund?"
       }
     }
-  }'`
+  }'`)
 </script>
 
 <template>
@@ -191,7 +193,7 @@ const quickstart = `curl -sS "$NOEMA_BASE_URL/v1/systemone" \\
               </li>
               <li>
                 <span class="console-step-num mono">2</span>
-                <p>Export <code>NOEMA_BASE_URL</code> and <code>NOEMA_API_KEY</code>.</p>
+                <p>Export <code>{{ envPrefix }}_BASE_URL</code> and <code>{{ envPrefix }}_API_KEY</code>.</p>
               </li>
               <li>
                 <span class="console-step-num mono">3</span>

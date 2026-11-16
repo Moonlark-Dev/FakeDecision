@@ -16,7 +16,9 @@ import {
 } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
 import { ApiError, get, post } from '@/lib/api'
+import { brandEnvPrefix, deploymentOrigin } from '@/lib/brand'
 import { formatDuration } from '@/lib/format'
+import { useSession } from '@/lib/session'
 import { toast } from '@/lib/toast'
 import {
   highlightJson,
@@ -26,6 +28,10 @@ import {
   shellQuote,
 } from '@/public/support'
 import type { Model, PlaygroundResult, Protocol, QuestionType } from '@/types/api'
+
+const session = useSession()
+const envPrefix = computed(() => brandEnvPrefix(session.state.site?.site_name))
+const exampleBaseUrl = computed(() => deploymentOrigin())
 
 interface BuilderOption {
   key: string
@@ -394,11 +400,11 @@ const endpoint = computed(() => (protocol.value === 'systemone' ? '/v1/systemone
 const requestJson = computed(() => prettyJson(judgeRequest.value))
 
 const curlSnippet = computed(() => {
-  const lines = [`curl -sS "$NOEMA_BASE_URL${endpoint.value}" \\`]
+  const lines = [`curl -sS "$${envPrefix.value}_BASE_URL${endpoint.value}" \\`]
   lines.push(
     protocol.value === 'systemone'
-      ? '  -H "Authorization: Bearer $NOEMA_API_KEY" \\'
-      : '  -H "x-goog-api-key: $NOEMA_API_KEY" \\',
+      ? `  -H "Authorization: Bearer $${envPrefix.value}_API_KEY" \\`
+      : `  -H "x-goog-api-key: $${envPrefix.value}_API_KEY" \\`,
   )
   lines.push('  -H "Content-Type: application/json" \\')
   if (timeoutMs.value !== null) lines.push(`  -H "X-Decision-Timeout-Ms: ${timeoutMs.value}" \\`)
@@ -409,8 +415,8 @@ const curlSnippet = computed(() => {
 const pythonSnippet = computed(() => {
   const headers =
     protocol.value === 'systemone'
-      ? `{"Authorization": f"Bearer {os.environ['NOEMA_API_KEY']}"}`
-      : `{"x-goog-api-key": os.environ['NOEMA_API_KEY']}`
+      ? `{"Authorization": f"Bearer {os.environ['${envPrefix.value}_API_KEY']}"}`
+      : `{"x-goog-api-key": os.environ['${envPrefix.value}_API_KEY']}`
   const timeoutHeader = timeoutMs.value !== null ? `    "X-Decision-Timeout-Ms": "${timeoutMs.value}",\n` : ''
   return `import json
 import os
@@ -421,7 +427,7 @@ payload = json.loads(
 )
 
 response = requests.post(
-    f"{os.environ['NOEMA_BASE_URL']}${endpoint.value}",
+    f"{os.environ['${envPrefix.value}_BASE_URL']}${endpoint.value}",
     headers={${headers}},
 ${timeoutHeader}    json=payload,
     timeout=120,
@@ -433,10 +439,10 @@ print(json.dumps(response.json(), indent=2))`
 const typescriptSnippet = computed(() => {
   const auth =
     protocol.value === 'systemone'
-      ? `    Authorization: \`Bearer \${process.env.NOEMA_API_KEY}\`,`
-      : `    'x-goog-api-key': process.env.NOEMA_API_KEY ?? '',`
+      ? `    Authorization: \`Bearer \${process.env.${envPrefix.value}_API_KEY}\`,`
+      : `    'x-goog-api-key': process.env.${envPrefix.value}_API_KEY ?? '',`
   const timeoutLine = timeoutMs.value !== null ? `    'X-Decision-Timeout-Ms': '${timeoutMs.value}',\n` : ''
-  return `const baseUrl = process.env.NOEMA_BASE_URL ?? 'https://api.noema.dev'
+  return `const baseUrl = process.env.${envPrefix.value}_BASE_URL ?? '${exampleBaseUrl.value}'
 
 const payload = ${requestJson.value} as const
 

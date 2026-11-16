@@ -5,6 +5,7 @@ import { ArrowUpRight, KeyRound } from 'lucide-vue-next'
 import CodeBlock from '@/components/CodeBlock.vue'
 import { get } from '@/lib/api'
 import { useSession } from '@/lib/session'
+import { brandEnvPrefix, deploymentOrigin } from '@/lib/brand'
 import { formatTokenWindow } from '@/lib/format'
 import { reportError } from '@/public/support'
 import type { Model, Protocol } from '@/types/api'
@@ -12,6 +13,8 @@ import type { Model, Protocol } from '@/types/api'
 const session = useSession()
 const site = computed(() => session.state.site)
 const user = computed(() => session.state.user)
+const envPrefix = computed(() => brandEnvPrefix(site.value?.site_name))
+const exampleBaseUrl = computed(() => deploymentOrigin())
 
 type Lang = 'curl' | 'python' | 'typescript'
 const lang = ref<Lang>('curl')
@@ -21,9 +24,9 @@ const langs: { id: Lang; label: string }[] = [
   { id: 'typescript', label: 'TypeScript' },
 ]
 
-const quickstartSnippets: Record<Lang, string> = {
-  curl: `curl -sS "$NOEMA_BASE_URL/v1/systemone" \\
-  -H "Authorization: Bearer $NOEMA_API_KEY" \\
+const quickstartSnippets = computed<Record<Lang, string>>(() => ({
+  curl: `curl -sS "$${envPrefix.value}_BASE_URL/v1/systemone" \\
+  -H "Authorization: Bearer $${envPrefix.value}_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "jev-latest",
@@ -39,8 +42,8 @@ const quickstartSnippets: Record<Lang, string> = {
 import requests
 
 response = requests.post(
-    f"{os.environ['NOEMA_BASE_URL']}/v1/systemone",
-    headers={"Authorization": f"Bearer {os.environ['NOEMA_API_KEY']}"},
+    f"{os.environ['${envPrefix.value}_BASE_URL']}/v1/systemone",
+    headers={"Authorization": f"Bearer {os.environ['${envPrefix.value}_API_KEY']}"},
     json={
         "model": "jev-latest",
         "state": "The customer was charged twice.",
@@ -55,7 +58,7 @@ response = requests.post(
 )
 response.raise_for_status()
 print(response.json()["answers"]["refund"]["noul"])`,
-  typescript: `const baseUrl = process.env.NOEMA_BASE_URL ?? 'https://api.noema.dev'
+  typescript: `const baseUrl = process.env.${envPrefix.value}_BASE_URL ?? '${exampleBaseUrl.value}'
 
 type NoulAnswer = { type: 'noul'; noul: number }
 interface DecisionResponse {
@@ -67,7 +70,7 @@ const response = await fetch(\`\${baseUrl}/v1/systemone\`, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    Authorization: \`Bearer \${process.env.NOEMA_API_KEY}\`,
+    Authorization: \`Bearer \${process.env.${envPrefix.value}_API_KEY}\`,
   },
   body: JSON.stringify({
     model: 'jev-latest',
@@ -86,7 +89,7 @@ if (!response.ok) {
 }
 const data = (await response.json()) as DecisionResponse
 console.log(data.answers.refund.noul)`,
-}
+}))
 
 const systemoneRequest = `{
   "model": "jev-latest",
@@ -135,11 +138,11 @@ const systemoneResponse = `{
   "rounding": { "probabilityDecimals": 2, "scoreDecimals": 2 }
 }`
 
-const systemoneCurl = `curl -sS "$NOEMA_BASE_URL/v1/systemone" \\
-  -H "Authorization: Bearer $NOEMA_API_KEY" \\
+const systemoneCurl = computed(() => `curl -sS "$${envPrefix.value}_BASE_URL/v1/systemone" \\
+  -H "Authorization: Bearer $${envPrefix.value}_API_KEY" \\
   -H "Content-Type: application/json" \\
   -H "X-Decision-Timeout-Ms: 60000" \\
-  -d @request.json`
+  -d @request.json`)
 
 const geminiRequest = `{
   "model": "gemini-decision-1",
@@ -190,14 +193,14 @@ const geminiResponse = `{
   }
 }`
 
-const geminiCurl = `curl -sS "$NOEMA_BASE_URL/v1beta/decisions" \\
-  -H "x-goog-api-key: $NOEMA_API_KEY" \\
+const geminiCurl = computed(() => `curl -sS "$${envPrefix.value}_BASE_URL/v1beta/decisions" \\
+  -H "x-goog-api-key: $${envPrefix.value}_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d @request.json
 
 # Also accepted:
 # POST /v1beta/models/gemini-decision-1:decisions
-# POST /v1/decisions`
+# POST /v1/decisions`)
 
 const noulShape = `{
   "refund": {
@@ -388,8 +391,8 @@ onBeforeUnmount(() => observer?.disconnect())
 
           <div class="pub-doc-callout">
             <p>
-              <strong>Base URL.</strong> All examples read <code>NOEMA_BASE_URL</code> from the environment.
-              Set it to this deployment's origin, for example <code>https://api.noema.dev</code>.
+              <strong>Base URL.</strong> All examples read <code>{{ envPrefix }}_BASE_URL</code> from the environment.
+              Set it to this deployment's origin, for example <code>{{ exampleBaseUrl }}</code>.
             </p>
           </div>
 
@@ -429,7 +432,7 @@ onBeforeUnmount(() => observer?.disconnect())
           <h2 class="pub-doc-h2">Quickstart</h2>
           <ol class="pub-doc-steps">
             <li>Create an API key in the <RouterLink to="/console/keys">console</RouterLink>.</li>
-            <li>Export <code>NOEMA_BASE_URL</code> and <code>NOEMA_API_KEY</code>.</li>
+            <li>Export <code>{{ envPrefix }}_BASE_URL</code> and <code>{{ envPrefix }}_API_KEY</code>.</li>
             <li>Send a request and read the <code>answers</code> object.</li>
           </ol>
 

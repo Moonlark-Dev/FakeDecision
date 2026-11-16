@@ -5,7 +5,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import login_admin
+from fake_decision.settings import brand_slug
+from tests.conftest import create_key, login_admin, register_user
 
 # 1x1 transparent PNG.
 PNG_1X1 = base64.b64decode(
@@ -93,3 +94,23 @@ def test_brand_logo_rejects_invalid_uploads(client: TestClient):
 def test_brand_logo_requires_admin(client: TestClient):
     assert client.post("/api/admin/branding/logo", json={"filename": "logo.png", "data": PNG_DATA_URL}).status_code in {401, 403}
     assert client.delete("/api/admin/branding/logo").status_code in {401, 403}
+
+
+def test_brand_slug_follows_site_name():
+    assert brand_slug({"site_name": "Noema"}) == "noema"
+    assert brand_slug({"site_name": "Acme Decisions"}) == "acme-decisions"
+    assert brand_slug({"site_name": "决策云"}) == "decisions"
+
+
+def test_model_owner_follows_site_name(client: TestClient):
+    register_user(client)
+    key = create_key(client)
+    listing = client.get("/v1/models", headers={"Authorization": f"Bearer {key}"})
+    assert listing.status_code == 200, listing.text
+    assert {item["owned_by"] for item in listing.json()["data"]} == {"noema"}
+
+    login_admin(client)
+    updated = client.put("/api/admin/settings", json={"values": {"site_name": "Test Decision Co"}})
+    assert updated.status_code == 200, updated.text
+    listing = client.get("/v1/models", headers={"Authorization": f"Bearer {key}"})
+    assert {item["owned_by"] for item in listing.json()["data"]} == {"test-decision-co"}

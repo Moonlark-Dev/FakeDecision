@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from .db import Database, now_ms
@@ -74,6 +75,13 @@ DEFAULT_MODELS = [
         "sort_order": 20,
     },
 ]
+
+
+def brand_slug(settings: dict[str, Any]) -> str:
+    """Stable machine-readable owner string derived from the display brand."""
+    raw = str(settings.get("site_name") or "").strip().lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
+    return slug or "decisions"
 
 
 def get_all_settings(db: Database) -> dict[str, Any]:

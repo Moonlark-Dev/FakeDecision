@@ -381,6 +381,7 @@ onMounted(() => {
                 :disabled="saving"
                 @input="setString('support_email', ($event.target as HTMLInputElement).value)"
               />
+              <p class="field-hint">Separate from the brand name; used in public footers and docs.</p>
               <p v-if="fieldErrors.support_email" class="field-error">{{ fieldErrors.support_email }}</p>
             </div>
             <div class="field">

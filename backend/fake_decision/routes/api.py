@@ -22,7 +22,7 @@ from ..protocols import (
     systemone_error,
 )
 from ..security import bearer_token, hash_token
-from ..settings import get_all_settings
+from ..settings import brand_slug, get_all_settings
 
 router = APIRouter(tags=["decision-api"])
 
@@ -215,12 +215,13 @@ async def list_models(request: Request) -> JSONResponse:
         return error
     db = request.app.state.db
     rows = db.fetch_all("SELECT * FROM models WHERE enabled = 1 AND protocol IN ('systemone', 'both') ORDER BY sort_order, name")
+    owner = brand_slug(get_all_settings(db))
     data = [
         {
             "id": row["name"],
             "object": "model",
             "created": int(row["created_at"] / 1000),
-            "owned_by": "noema",
+            "owned_by": owner,
             "name": row["name"],
             "display_name": row["display_name"],
             "description": row["description"],
@@ -237,18 +238,20 @@ async def systemone_model(request: Request, model_name: str) -> JSONResponse:
     _key, error = _lookup_key(request, "systemone")
     if error:
         return error
-    row = request.app.state.db.fetch_one(
+    db = request.app.state.db
+    row = db.fetch_one(
         "SELECT * FROM models WHERE name = ? AND enabled = 1 AND protocol IN ('systemone', 'both')",
         (model_name,),
     )
     if not row:
         return _error("systemone", 404, "模型不存在或不可用", "model_not_found")
+    owner = brand_slug(get_all_settings(db))
     return JSONResponse(
         {
             "id": row["name"],
             "object": "model",
             "created": int(row["created_at"] / 1000),
-            "owned_by": "noema",
+            "owned_by": owner,
             "display_name": row["display_name"],
             "description": row["description"],
             "context_window": row["context_window"],

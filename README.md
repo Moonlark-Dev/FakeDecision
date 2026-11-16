@@ -295,7 +295,7 @@ The data directory (`/var/lib/fakedecision` in the systemd example, `C:\FakeDeci
 
 ### Branding
 
-Site name, tagline, description and links are edited in **`/admin/settings`**. The same page accepts a logo upload — PNG, JPEG, WebP or SVG up to **512 KB** — stored in the data directory and also used as the site favicon. Changes take effect immediately; no rebuild or restart is required.
+Site name, tagline, description and links are edited in **`/admin/settings`**. The same page accepts a logo upload — PNG, JPEG, WebP or SVG up to **512 KB** — stored in the data directory and also used as the site favicon. Changes take effect immediately; no rebuild or restart is required. The public `/docs` page and console quickstart/playground samples derive their environment-variable prefix (e.g. `NOEMA_BASE_URL`) and example base URL from the current site name and deployment origin, so they follow a rename automatically. The support email is a separate setting and is not renamed automatically.
 
 ### Private use
 

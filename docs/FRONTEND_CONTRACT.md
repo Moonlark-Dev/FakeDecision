@@ -15,6 +15,7 @@
 ## Brand
 
 - Product: **Noema** (name comes from `/api/site`, default Noema).
+- Runtime docs and console samples must use `brandEnvPrefix(site_name)` from `@/lib/brand` plus the deployment origin instead of hard-coded `NOEMA_*` variables or example domains.
 - Brand logo: `logo_url` from `/api/site` (`""` = built-in inline SVG mark). The URL is versioned, so use it directly and update the favicon from it. Custom logos are uploaded in `/admin/settings` (PNG/JPEG/WebP/SVG, ≤512 KB) and stored in the data directory; the built-in mark remains the fallback.
 - Line: "Typed decisions for software."
 - Models: `jev-latest` (Jev 1.4) and `gemini-decision-1` (Gemini Decision 1).

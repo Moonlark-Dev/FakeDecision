@@ -59,7 +59,7 @@
   - Answer editor:
     - noul: probability slider + number + preset chips (decisive/lean/toss-up/lean-no/decisive-no), confidence display.
     - choice: radio winner + per-option probability inputs, confidence, randomize button.
-    - score: level probability inputs/sliders, computed expected score, confidence, randomize.
+    - score: radio level picker (no manual probability entry); selecting a level generates a Gaussian-like distribution centred on it with the picked level clearly dominant, computed expected score, confidence, randomize.
     - per-question "Randomize" calls `POST .../randomize` with `{question_ids:[id]}`.
     - "Randomize all" calls with all IDs.
     - Draft autosave (debounced 600–900 ms) to `PUT .../draft`; submit `POST .../answer`, require every question answered, disable while submitting.

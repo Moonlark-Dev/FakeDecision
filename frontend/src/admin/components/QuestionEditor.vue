@@ -233,20 +233,66 @@ function updateChoiceProbability(key: string, raw: number | string) {
 
 /* ----------------------------------------------------------------- score */
 const scoreKeys = computed(() => optionKeys(props.question))
+const scoreRadioName = computed(() => `adm-score-${props.index}`)
 const scoreTouched = ref(false)
-const scoreProbs = ref<Record<string, number>>(equalMap(scoreKeys.value))
+const scoreChoice = ref('')
+const scoreProbs = ref<Record<string, number>>({})
 const scoreNormalized = computed(() => normalizedProbabilities(scoreProbs.value))
-const scoreSum = computed(() => probabilitySum(scoreProbs.value))
-const scoreConfidence = computed(() => Math.max(...Object.values(scoreNormalized.value), 0))
+const scoreConfidence = computed(() =>
+  scoreChoice.value ? Math.max(...Object.values(scoreNormalized.value), 0) : 0,
+)
 const expectedScoreValue = computed(() => expectedScore(scoreProbs.value))
-const scoreCorrection = computed(() => {
-  if (!scoreKeys.value.length) return ''
-  if (scoreSum.value <= 0) return 'All probabilities are zero — adjusting levels is required.'
-  if (Math.abs(scoreSum.value - 1) > 0.005) {
-    return `Values total ${formatProbability(scoreSum.value)} — normalized on save.`
+
+/* The picked level always stays the clear argmax: at least this share of the
+   mass and at least this multiple of the runner-up. */
+const SCORE_MIN_SHARE = 0.38
+const SCORE_MIN_MARGIN = 1.8
+
+function scoreDomId(optionIndex: number): string {
+  return `adm-q-${props.index}-score-${optionIndex}`
+}
+
+function scoreWeights(count: number, center: number, sigma: number): number[] {
+  const weights: number[] = []
+  for (let index = 0; index < count; index += 1) {
+    const distance = index - center
+    const skew = 0.95 + Math.random() * 0.1
+    weights.push(Math.exp(-(distance * distance) / (2 * sigma * sigma)) * skew)
   }
-  return ''
-})
+  return weights
+}
+
+function roundWeights(keys: string[], weights: number[]): Record<string, number> {
+  const total = weights.reduce((sum, weight) => sum + weight, 0) || 1
+  const probabilities: Record<string, number> = {}
+  let assigned = 0
+  keys.forEach((key, index) => {
+    const share =
+      index === keys.length - 1 ? roundTo(1 - assigned, 2) : roundTo(weights[index] / total, 2)
+    probabilities[key] = share
+    assigned = roundTo(assigned + share, 2)
+  })
+  return probabilities
+}
+
+/** Build a Gaussian-like spread over the ordered levels, centred on the picked one. */
+function scoreSpread(keys: string[], selectedIndex: number): Record<string, number> {
+  const selectedKey = keys[selectedIndex]
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const sigma = Math.max(0.32, 0.5 + Math.random() * 0.3 - attempt * 0.03)
+    const center = selectedIndex + (Math.random() - 0.5) * Math.max(0.02, 0.12 - attempt * 0.02)
+    const probabilities = roundWeights(keys, scoreWeights(keys.length, center, sigma))
+    const selectedShare = probabilities[selectedKey] ?? 0
+    const runnerUp = keys
+      .filter((key) => key !== selectedKey)
+      .reduce((peak, key) => Math.max(peak, probabilities[key] ?? 0), 0)
+    if (selectedShare >= SCORE_MIN_SHARE && selectedShare >= runnerUp * SCORE_MIN_MARGIN) {
+      return probabilities
+    }
+  }
+  // Sharp fallback, still Gaussian-shaped, centred exactly on the picked level.
+  return roundWeights(keys, scoreWeights(keys.length, selectedIndex, 0.4))
+}
 
 function syncScore() {
   const answer = props.answer
@@ -255,21 +301,24 @@ function syncScore() {
     const map: Record<string, number> = {}
     for (const key of keys) map[key] = Number(answer.probabilities[key] ?? 0)
     scoreProbs.value = map
+    const winner = maxProbabilityKey(normalizedProbabilities(map))
+    scoreChoice.value = keys.includes(winner) ? winner : ''
     scoreTouched.value = true
   } else if (!scoreTouched.value) {
-    scoreProbs.value = equalMap(keys)
+    scoreChoice.value = ''
+    scoreProbs.value = {}
   }
 }
 
-function emitScore() {
+function emitScore(source: Record<string, number>) {
   const keys = scoreKeys.value
   if (!keys.length) return
-  let payload: Record<string, number> = {}
+  const payload: Record<string, number> = {}
   for (const key of keys) {
-    const raw = Number(scoreProbs.value[key] ?? 0)
+    const raw = Number(source[key] ?? 0)
     payload[key] = roundTo(clamp(Number.isFinite(raw) ? raw : 0, 0, 1), 2)
   }
-  if (probabilitySum(payload) <= 0) payload = equalMap(keys)
+  if (probabilitySum(payload) <= 0) return
   const normalized = normalizedProbabilities(payload)
   const expected = roundTo(
     Object.entries(normalized).reduce((total, [key, value]) => {
@@ -291,13 +340,14 @@ function emitScore() {
   emit('update:answer', answer)
 }
 
-function updateScoreProbability(key: string, raw: number | string) {
-  if (typeof raw === 'string' && raw.trim() === '') return
-  const numeric = typeof raw === 'string' ? Number(raw) : raw
-  if (!Number.isFinite(numeric)) return
+function selectScoreLevel(optionIndex: number) {
+  const keys = scoreKeys.value
+  if (!keys.length || props.disabled) return
+  const probabilities = scoreSpread(keys, optionIndex)
+  scoreChoice.value = keys[optionIndex]
+  scoreProbs.value = probabilities
   scoreTouched.value = true
-  scoreProbs.value = { ...scoreProbs.value, [key]: roundTo(clamp01(numeric), 2) }
-  emitScore()
+  emitScore(probabilities)
 }
 
 watch(
@@ -440,44 +490,42 @@ watch(
     </div>
 
     <div v-else-if="type === 'score'" class="adm-score-editor">
-      <div v-for="(option, optionIndex) in options" :key="option.key" class="adm-score-row">
-        <div class="adm-score-level">
+      <label
+        v-for="(option, optionIndex) in options"
+        :key="option.key"
+        class="adm-score-row"
+        :class="{ 'is-selected': scoreChoice === option.key }"
+      >
+        <input
+          :id="scoreDomId(optionIndex)"
+          class="adm-score-radio"
+          type="radio"
+          :name="scoreRadioName"
+          :value="option.key"
+          :checked="scoreChoice === option.key"
+          :disabled="disabled"
+          :aria-label="`Select level ${optionIndex}`"
+          @change="selectScoreLevel(optionIndex)"
+        />
+        <span class="adm-score-level">
           <span class="mono adm-score-index">{{ optionIndex }}</span>
           <span class="adm-score-desc">{{ option.description || option.label }}</span>
-        </div>
-        <input
-          class="adm-range"
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          :value="scoreProbs[option.key]"
-          :disabled="disabled"
-          :aria-label="`Probability for level ${optionIndex}`"
-          @input="updateScoreProbability(option.key, ($event.target as HTMLInputElement).value)"
-        />
-        <input
-          class="input adm-prob-input"
-          type="number"
-          min="0"
-          max="1"
-          step="0.01"
-          :value="scoreProbs[option.key]"
-          :disabled="disabled"
-          :aria-label="`Probability for level ${optionIndex}, numeric`"
-          @input="updateScoreProbability(option.key, ($event.target as HTMLInputElement).value)"
-        />
-        <span class="mono adm-score-pct">{{ formatProbability(scoreNormalized[option.key] ?? 0) }}</span>
-      </div>
+        </span>
+        <span class="adm-score-bar" aria-hidden="true">
+          <span :style="{ width: `${(scoreNormalized[option.key] ?? 0) * 100}%` }" />
+        </span>
+        <span class="mono adm-score-pct">
+          {{ scoreChoice ? formatProbability(scoreNormalized[option.key] ?? 0) : '—' }}
+        </span>
+      </label>
       <div class="adm-editor-footer">
-        <span>Expected score <strong>{{ expectedScoreValue.toFixed(2) }}</strong></span>
-        <span>Confidence <strong>{{ formatProbability(scoreConfidence) }}</strong></span>
-        <span class="muted">Total {{ formatProbability(scoreSum) }}</span>
+        <template v-if="scoreChoice">
+          <span>Selected level <strong>{{ scoreChoice }}</strong></span>
+          <span>Expected score <strong>{{ expectedScoreValue.toFixed(2) }}</strong></span>
+          <span>Confidence <strong>{{ formatProbability(scoreConfidence) }}</strong></span>
+        </template>
+        <span v-else class="muted">Pick a level — probabilities are generated around it.</span>
       </div>
-      <p v-if="scoreCorrection" class="adm-norm-note">
-        <TriangleAlert :size="12" />
-        <span>{{ scoreCorrection }}</span>
-      </p>
     </div>
 
     <p v-else class="adm-answer-empty">Unsupported question type: {{ type }}</p>

@@ -342,7 +342,7 @@ Runtime product settings (site name, registration, timeout, auto-fill, model cat
 4. The operator sees a human-readable rendering of the input and one editor per question:
    - **noul**: probability slider/number + quick presets; confidence derived from the winning side.
    - **choice**: pick a winner and edit per-option probabilities.
-   - **score**: edit per-level probabilities; expected score is calculated from the distribution.
+   - **score**: pick a level with a radio choice; a Gaussian-like distribution is generated around the picked level so it stays the clear argmax; expected score and confidence are derived from that distribution.
    - Per-question **Randomize** and whole-request **Randomize all** fill plausible, calibrated-looking data.
    - Drafts autosave to the server, so manual answers survive an auto-fill.
 5. Submitting returns the answer in the exact provider response shape. The HTTP client never sees the human layer.
